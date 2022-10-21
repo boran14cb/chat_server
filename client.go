@@ -19,21 +19,25 @@ func monitorSocket(conn net.Conn, wg sync.WaitGroup) {
 			os.Exit(0)
 		}
 		status = strings.Trim(status, "\r\n")
-		fmt.Println(status)
+		status = strings.Trim(status, ">")
+		fmt.Println("\n" + status)
+		fmt.Print(">")
 	}
 }
 
 func sendMessage(conn net.Conn, wg sync.WaitGroup) {
-	fmt.Println("input message:")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	err := scanner.Err()
-	if err != nil {
-		log.Fatal(err)
-		os.Exit(0)
-	}
+	for {
+		fmt.Print(">")
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		err := scanner.Err()
+		if err != nil {
+			log.Fatal(err)
+			os.Exit(0)
+		}
 
-	_, err = conn.Write([]byte(scanner.Text() + "\n"))
+		_, err = conn.Write([]byte(scanner.Text() + "\n"))
+	}
 }
 
 func setusrname(conn net.Conn) {
