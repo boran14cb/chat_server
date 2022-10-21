@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"sync"
 )
 
 const (
-	PORT string = ":8080"
+	PORT     string = ":8080"
+	PROTOCOL string = "tcp"
 )
 
 type client struct {
@@ -18,39 +22,90 @@ type client struct {
 
 var clients []*client
 
-func newClient(conn net.Conn) {
+func newClient(conn net.Conn, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
 	fmt.Println("Client connected: ", conn.RemoteAddr().String())
 
+	name := setUsername(conn, wg)
 	cli := &client{
 		conn:     conn,
-		username: "Anonymous",
+		username: name,
 	}
 
 	clients = append(clients, cli)
 	fmt.Println(cli.username)
+	fmt.Println(clients)
+
+	handleUserConnection(conn, wg)
 }
 
-func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
+func setUsername(conn net.Conn, wg *sync.WaitGroup) string {
 
-	// userInput, err := bufio.NewReader(conn).ReadString('\n')
-	// if err != nil {
-	// 	fmt.Println(err.Error())
-	// }
-	// fmt.Println(userInput)
-	_, e := clients[0].conn.Write([]byte("Hello!" + "\n"))
+	for {
+		userInput, err := bufio.NewReader(conn).ReadString('\n')
 
-	if e != nil {
-		log.Fatalln("unable to write over client connection")
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(0)
+		}
+
+		if userInput != "" {
+			userInput = strings.Trim(userInput, "\n")
+			return userInput
+		}
 	}
+
+	return "anonymous"
+
+}
+func handleUserConnection(conn net.Conn, wg *sync.WaitGroup) {
+
+	for {
+		userInput, err := bufio.NewReader(conn).ReadString('\n')
+
+		userInput = strings.Trim(userInput, "\r\n")
+		args := strings.Split(userInput, " ")
+		destination := strings.TrimSpace(args[0])
+		msg := strings.TrimSpace(args[1])
+		fmt.Println(args)
+
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(0)
+		}
+
+		if userInput != "" {
+			sendClientMessage(conn, msg, destination)
+		}
+	}
+
+}
+
+func sendClientMessage(conn net.Conn, msg string, destination string) {
+
+	for i := 0; i < len(clients); i++ {
+		fmt.Println(clients[i].username)
+		if clients[i].username == destination {
+			_, e := clients[i].conn.Write([]byte(msg + "\n"))
+
+			if e != nil {
+				log.Fatalln("unable to write over client connection")
+			}
+		}
+	}
+
 }
 
 func main() {
 	wg := sync.WaitGroup{}
+	wg1 := &wg
 	fmt.Println("Server starting...")
-	ln, err := net.Listen("tcp", PORT)
+	ln, err := net.Listen(PROTOCOL, PORT)
 
 	if err != nil {
 		fmt.Println("Unable to start server: ", err.Error())
+		os.Exit(0)
 	}
 
 	defer ln.Close()
@@ -59,9 +114,10 @@ func main() {
 		conn, err := ln.Accept()
 		if err != nil {
 			fmt.Println("Unable to connect to client: ", err.Error())
+			os.Exit(0)
 		}
-		newClient(conn)
-		handleUserConnection(conn, wg)
+
+		go newClient(conn, wg1)
 
 		wg.Wait()
 	}
