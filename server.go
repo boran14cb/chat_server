@@ -22,11 +22,15 @@ const (
 )
 
 const (
-	cmdName string = "/name"
-	cmdMsg  string = "/msg"
-	cmdQuit string = "/quit"
-	cmdHelp string = "/help"
-	cmdList string = "/list"
+	cmdName      string = "/name"
+	cmdMsg       string = "/msg"
+	cmdBroadcast string = "/all"
+	cmdSpam      string = "/spam"
+	cmdShout     string = "/shout"
+	cmdKick      string = "/kick"
+	cmdQuit      string = "/quit"
+	cmdHelp      string = "/help"
+	cmdList      string = "/list"
 )
 
 type client struct {
@@ -35,8 +39,9 @@ type client struct {
 }
 
 var clients []*client
+var wg sync.WaitGroup
 
-func newClient(conn net.Conn, wg *sync.WaitGroup) {
+func newClient(conn net.Conn, wg sync.WaitGroup) {
 	wg.Add(1)
 	defer wg.Done()
 	fmt.Println("Client connected: ", conn.RemoteAddr().String())
@@ -54,7 +59,7 @@ func newClient(conn net.Conn, wg *sync.WaitGroup) {
 	handleUserConnection(conn, wg)
 }
 
-func setUsername(conn net.Conn, wg *sync.WaitGroup) string {
+func setUsername(conn net.Conn, wg sync.WaitGroup) string {
 
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
@@ -83,7 +88,7 @@ func getUsername(conn net.Conn) string {
 	return "No username available"
 }
 
-func handleUserConnection(conn net.Conn, wg *sync.WaitGroup) {
+func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
@@ -96,7 +101,7 @@ func handleUserConnection(conn net.Conn, wg *sync.WaitGroup) {
 		userInput = strings.Trim(userInput, "\r\n")
 		args := strings.Split(userInput, " ")
 		cmd := strings.TrimSpace(args[0])
-		msg := strings.Join(args[1:], " ")
+		msg := strings.Join(args[2:], " ")
 
 		switch cmd {
 
@@ -110,10 +115,25 @@ func handleUserConnection(conn net.Conn, wg *sync.WaitGroup) {
 		case cmdMsg:
 			destination := args[1]
 			if userInput != "" {
+				msg = strings.Join(args[1:], " ")
 				sendClientMessage(conn, msg, destination, getUsername(conn))
 			}
+
+		case cmdBroadcast:
+			var owner string
+			for i := 0; i < len(clients); i++ {
+				if clients[i].conn == conn {
+					owner = clients[i].username
+				}
+			}
+			if userInput != "" {
+				msg := strings.Join(args[1:], " ")
+				broadcastMessage(conn, msg, owner, getUsername(conn))
+			}
+
 		case cmdList:
 			fmt.Println("cmdList: ", cmd)
+
 		case cmdHelp:
 			commandList := [6]string{USAGE, NAME, MSG, QUIT, HELP, LIST}
 			for i := 0; i < 6; i++ {
@@ -126,6 +146,7 @@ func handleUserConnection(conn net.Conn, wg *sync.WaitGroup) {
 
 		case cmdQuit:
 			fmt.Println("cmdQuit: ", cmd)
+
 		default:
 			fmt.Println("No such command: ", cmd)
 		}
@@ -149,9 +170,24 @@ func sendClientMessage(conn net.Conn, msg string, destination string, sender str
 
 }
 
+func broadcastMessage(conn net.Conn, msg string, owner string, sender string) {
+
+	for i := 0; i < len(clients); i++ {
+		fmt.Println(clients[i].username)
+		if clients[i].username != owner {
+			_, e := clients[i].conn.Write([]byte(sender + ": " + msg + "\n"))
+
+			if e != nil {
+				log.Fatalln("unable to write over client connection")
+			}
+		}
+	}
+
+}
+
 func main() {
-	wg := sync.WaitGroup{}
-	wg1 := &wg
+	//wg = sync.WaitGroup{}
+	//wg1 := &wg
 	fmt.Println("Server starting...")
 	ln, err := net.Listen(PROTOCOL, PORT)
 
@@ -162,6 +198,7 @@ func main() {
 
 	defer ln.Close()
 	fmt.Println("Server started on port ", PORT)
+	//var oldConn net.Conn
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -169,8 +206,14 @@ func main() {
 			os.Exit(0)
 		}
 
-		go newClient(conn, wg1)
+		//if conn != oldConn {
+		//wg.Add(1)
+		go newClient(conn, wg)
 
+		//}
+		//oldConn = conn
+		fmt.Println("Server polling")
 		wg.Wait()
+		fmt.Println("Server closed")
 	}
 }
