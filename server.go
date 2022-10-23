@@ -27,17 +27,19 @@ const (
 	cmdBroadcast  string = "/all"  //Done
 	cmdCreateRoom string = "/create"
 	cmdJoinRoom   string = "/join"
+	cmdQuitRoom   string = "/quit"
 	cmdSpam       string = "/spam"
 	cmdShout      string = "/shout"
 	cmdKick       string = "/kick"
-	cmdQuit       string = "/quit"
+	cmdExit       string = "/exit"
 	cmdHelp       string = "/help" //Fix newline problem
 	cmdList       string = "/list"
 )
 
 type client struct {
-	conn     net.Conn
-	username string
+	conn        net.Conn
+	username    string
+	currentRoom string
 }
 
 type room struct {
@@ -109,7 +111,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 		userInput = strings.Trim(userInput, "\r\n")
 		args := strings.Split(userInput, " ")
 		cmd := strings.TrimSpace(args[0])
-		msg := strings.Join(args[2:], " ")
+		//msg := strings.Join(args[2:], " ")
 
 		fmt.Println(cmd)
 
@@ -131,7 +133,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 		case cmdMsg:
 			destination := args[1]
 			if userInput != "" {
-				msg = strings.Join(args[1:], " ")
+				msg := strings.Join(args[2:], " ")
 				sendClientMessage(conn, msg, destination, getUsername(conn))
 			}
 
@@ -153,13 +155,40 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 			newRoom.roomName = roomName
 			rooms = append(rooms, newRoom)
 
-			_, e := conn.Write([]byte("Room created with name: " + roomName))
+			//time.Sleep(1 * time.Second)
+			msg := "Room created with name: " + roomName
 
-			if e != nil {
-				log.Fatalln("unable to write over client connection")
+			var destination string
+			for i := 0; i < len(clients); i++ {
+				if clients[i].conn == conn {
+					destination = clients[i].username
+				}
 			}
+
+			sendClientMessage(conn, msg, destination, "SERVER")
 			//newRoom.connectedClients clients = append(clients, cli)
 		case cmdJoinRoom:
+			var cli *client
+			roomName := strings.TrimSpace(args[1])
+			for i := 0; i < len(clients); i++ {
+				if clients[i].conn == conn {
+					cli = clients[i]
+					clients[i].currentRoom = roomName
+				}
+			}
+
+			for i := 0; i < len(rooms); i++ {
+				if rooms[i].roomName == roomName {
+					rooms[i].connectedClients = append(rooms[i].connectedClients, cli)
+				}
+			}
+
+		case cmdQuitRoom:
+			for i := 0; i < len(clients); i++ {
+				if clients[i].conn == conn {
+					clients[i].currentRoom = ""
+				}
+			}
 
 		case cmdShout:
 		case cmdKick:
@@ -178,7 +207,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 				}
 			}
 
-		case cmdQuit:
+		case cmdExit:
 			fmt.Println("cmdQuit: ", cmd)
 
 		default:
@@ -206,9 +235,16 @@ func sendClientMessage(conn net.Conn, msg string, destination string, sender str
 
 func broadcastMessage(conn net.Conn, msg string, owner string, sender string) {
 
+	var senderRoom string = ""
+	for i := 0; i < len(clients); i++ {
+		if clients[i].conn == conn {
+			senderRoom = clients[i].currentRoom
+		}
+	}
+
 	for i := 0; i < len(clients); i++ {
 		fmt.Println(clients[i].username)
-		if clients[i].username != owner {
+		if clients[i].username != owner && clients[i].currentRoom == senderRoom {
 			_, e := clients[i].conn.Write([]byte(sender + ": " + msg + "\n"))
 
 			if e != nil {
