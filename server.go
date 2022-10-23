@@ -22,15 +22,17 @@ const (
 )
 
 const (
-	cmdName      string = "/name"
-	cmdMsg       string = "/msg"
-	cmdBroadcast string = "/all"
-	cmdSpam      string = "/spam"
-	cmdShout     string = "/shout"
-	cmdKick      string = "/kick"
-	cmdQuit      string = "/quit"
-	cmdHelp      string = "/help"
-	cmdList      string = "/list"
+	cmdName       string = "/name" //Done
+	cmdMsg        string = "/msg"  //Done
+	cmdBroadcast  string = "/all"  //Done
+	cmdCreateRoom string = "/create"
+	cmdJoinRoom   string = "/join"
+	cmdSpam       string = "/spam"
+	cmdShout      string = "/shout"
+	cmdKick       string = "/kick"
+	cmdQuit       string = "/quit"
+	cmdHelp       string = "/help" //Fix newline problem
+	cmdList       string = "/list"
 )
 
 type client struct {
@@ -38,6 +40,12 @@ type client struct {
 	username string
 }
 
+type room struct {
+	roomName         string
+	connectedClients []*client
+}
+
+var rooms []room
 var clients []*client
 var wg sync.WaitGroup
 
@@ -103,12 +111,20 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 		cmd := strings.TrimSpace(args[0])
 		msg := strings.Join(args[2:], " ")
 
+		fmt.Println(cmd)
+
 		switch cmd {
 
 		case cmdName:
 			for i := 0; i < len(clients); i++ {
 				if clients[i].conn == conn {
-					clients[i].username = msg
+					newName := strings.TrimSpace(args[1])
+					clients[i].username = newName
+					_, e := conn.Write([]byte("You changed your name to: " + newName))
+
+					if e != nil {
+						log.Fatalln("unable to write over client connection")
+					}
 				}
 			}
 
@@ -130,6 +146,24 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 				msg := strings.Join(args[1:], " ")
 				broadcastMessage(conn, msg, owner, getUsername(conn))
 			}
+
+		case cmdCreateRoom:
+			roomName := strings.TrimSpace(args[1])
+			var newRoom room
+			newRoom.roomName = roomName
+			rooms = append(rooms, newRoom)
+
+			_, e := conn.Write([]byte("Room created with name: " + roomName))
+
+			if e != nil {
+				log.Fatalln("unable to write over client connection")
+			}
+			//newRoom.connectedClients clients = append(clients, cli)
+		case cmdJoinRoom:
+
+		case cmdShout:
+		case cmdKick:
+		case cmdSpam:
 
 		case cmdList:
 			fmt.Println("cmdList: ", cmd)
