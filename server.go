@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 const (
@@ -47,6 +49,12 @@ var (
 	serverPrivate *rsa.PrivateKey
 	serverPublic  rsa.PublicKey
 )
+
+// Colours!!
+var cyan = color.New(color.FgCyan).SprintFunc()
+var green = color.New(color.FgGreen).SprintFunc()
+var red = color.New(color.FgRed).SprintFunc()
+var yellow = color.New(color.FgYellow).SprintFunc()
 
 type client struct {
 	conn        net.Conn
@@ -81,9 +89,14 @@ func newClient(conn net.Conn, wg sync.WaitGroup) {
 	}
 
 	clients = append(clients, cli)
-	fmt.Println(cli.username)
-	fmt.Println(clients)
+	//fmt.Println(cli.username)
+	//fmt.Println(clients)
 
+	_, err := conn.Write([]byte(serverPublic.N.String() + " " + strconv.Itoa(serverPublic.E) + "\n"))
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(0)
+	}
 	handleUserConnection(conn, wg)
 }
 
@@ -117,11 +130,7 @@ func setPublicKeyClient(conn net.Conn, wg sync.WaitGroup) rsa.PublicKey {
 				log.Println("error scanning value:", err)
 			}
 
-			//fmt.Println(N)
-			//fmt.Println(E)
-
-			//userInput = strings.Trim(userInput, "\n")
-			//return userInput
+			return pKey
 		}
 	}
 }
@@ -151,6 +160,8 @@ func getUsername(conn net.Conn) string {
 			return clients[i].username
 		}
 	}
+
+	cyan := color.New(color.FgCyan).SprintFunc()
 	return "No username available"
 }
 
@@ -182,7 +193,6 @@ func remove(conn net.Conn) {
 }
 
 func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
-
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
 
@@ -193,6 +203,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 			break
 		}
 
+		userInput = decrypt(userInput, *serverPrivate)
 		userInput = strings.Trim(userInput, "\r\n")
 		args := strings.Split(userInput, " ")
 		cmd := strings.TrimSpace(args[0])
@@ -375,6 +386,7 @@ func sendClientMessage(conn net.Conn, msg string, destination string, sender str
 	for i := 0; i < len(clients); i++ {
 		//fmt.Println(clients[i].username)
 		if clients[i].username == destination {
+			msg = encrypt(msg, clients[i].public)
 			_, e := clients[i].conn.Write([]byte(sender + ": " + msg + "\n"))
 
 			if e != nil {
@@ -395,9 +407,11 @@ func broadcastMessage(conn net.Conn, msg string, owner string, sender string) {
 	}
 
 	for i := 0; i < len(clients); i++ {
-		//fmt.Println(clients[i].username)
 		if clients[i].username != owner && clients[i].currentRoom == senderRoom {
-			_, e := clients[i].conn.Write([]byte(sender + ": " + msg + "\n"))
+			//fmt.Println(clients[i].public)
+			cipherText := encrypt(sender+": "+msg, clients[i].public)
+			//fmt.Println("\n" + cipherText)
+			_, e := clients[i].conn.Write([]byte(cipherText + "\n"))
 
 			if e != nil {
 				log.Fatalln("unable to write over client connection")
