@@ -1,13 +1,10 @@
-package main
+package internal
 
 import (
 	"bufio"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
-	"log"
 	"math/big"
 	"net"
 	"os"
@@ -21,80 +18,81 @@ var publicKey rsa.PublicKey
 var privateKey *rsa.PrivateKey
 var ServerPublicKey rsa.PublicKey
 
+var usrname string
+
 func monitorSocket(conn net.Conn, wg sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		status, err := bufio.NewReader(conn).ReadString('\n')
-		if err != nil {
-			fmt.Println("Unable to read input from the server ", err.Error())
-			os.Exit(0)
-		}
+		checkError(err, "Unable to read input from the server ")
 
-		//fmt.Println(status)
-		status = decryptClient(status, *privateKey)
+		status = decrypt(status, *privateKey)
 		status = strings.Trim(status, "\r\n")
 		status = strings.Trim(status, ">")
 
 		fmt.Println("\n" + status)
-		fmt.Print(">")
+		fmt.Print(purple("> "))
 	}
 }
 
 func sendMessage(conn net.Conn, wg sync.WaitGroup) {
 	for {
-		fmt.Print(">")
+		fmt.Print(purple("> "))
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
-		err := scanner.Err()
-		if err != nil {
-			log.Fatal(err)
-			os.Exit(0)
-		}
 
-		msg := encryptClient(scanner.Text(), ServerPublicKey)
-		//fmt.Println(msg)
-		_, err = conn.Write([]byte(msg + "\n"))
+		err := scanner.Err()
+		checkError(err, "")
+
+		userInput := strings.Trim(scanner.Text(), "\r\n")
+		args := strings.Split(userInput, " ")
+		if args[0] == "/help" {
+			commandList := [13][3]string{USAGE, NAME, MSG, BROADCAST, SPAM, SHOUT, CREATE, JOIN, KICK, MSG, QUIT, HELP, LIST}
+			for i := range commandList {
+				fmt.Printf("%5s%5s%5s\n", commandList[i][0], commandList[i][1], commandList[i][2])
+
+			}
+		} else {
+
+			msg := encrypt(scanner.Text(), ServerPublicKey)
+
+			_, err = conn.Write([]byte(msg + "\n"))
+			checkError(err, "")
+		}
 	}
 }
 
 func setusrname(conn net.Conn) {
-	fmt.Print("input username: ")
+	fmt.Print(blue("input username: "))
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 
 	err := scanner.Err()
-	if err != nil {
-		log.Fatal(err)
-		os.Exit(0)
-	}
+	checkError(err, "")
 
 	pKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	checkError(err, "")
 
 	privateKey = pKey
 	publicKey = privateKey.PublicKey
 
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	//fmt.Println(scanner.Text())
+	usrname = strings.Trim(scanner.Text(), "\r\n")
 	_, err = conn.Write([]byte(scanner.Text() + "\n"))
+
+	checkError(err, "")
 	time.Sleep(100 * time.Millisecond)
-	//fmt.Println(publicKey)
+
 	_, err = conn.Write([]byte(publicKey.N.String() + " " + strconv.Itoa(publicKey.E) + "\n"))
+	checkError(err, "")
 
 	ServerPublicKey = setPublicKeyServer(conn)
-	//fmt.Println("PublicKey: ", ServerPublicKey)
 }
 
 func setPublicKeyServer(conn net.Conn) rsa.PublicKey {
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
 
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(0)
-		}
+		checkError(err, "")
 
 		if userInput != "" {
 			userInput = strings.Trim(userInput, "\r\n")
@@ -106,55 +104,37 @@ func setPublicKeyServer(conn net.Conn) rsa.PublicKey {
 			i := new(big.Int)
 			_, err := fmt.Sscan(N, i)
 
-			if err != nil {
-				log.Println("error scanning value:", err)
-			}
+			checkError(err, "error scanning value: ")
 
 			pKey.N = i
 			pKey.E, err = strconv.Atoi(E)
 
-			if err != nil {
-				log.Println("error scanning value:", err)
-			}
+			checkError(err, "error scanning value: ")
 
 			return pKey
 		}
 	}
 }
 
-func encryptClient(msg string, key rsa.PublicKey) string {
-
-	label := []byte("OAEP Encrypted")
-	rng := rand.Reader
-
-	// * using OAEP algorithm to make it more secure
-	// * using sha256
-	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rng, &key, []byte(msg), label)
-	// check for errors
-	if err != nil {
-		log.Fatalln("unable to encrypt")
+func getClientRoom(usr string) string {
+	fmt.Println(clients)
+	for i := 0; i < len(clients); i++ {
+		if clients[i].username == usr {
+			fmt.Println("Works")
+			return clients[i].currentRoom
+		}
 	}
-
-	return base64.StdEncoding.EncodeToString(ciphertext)
+	return "general"
 }
 
-// function to decrypt message to be received
-func decryptClient(cipherText string, key rsa.PrivateKey) string {
-
-	ct, _ := base64.StdEncoding.DecodeString(cipherText)
-	label := []byte("OAEP Encrypted")
-	rng := rand.Reader
-
-	// decrypting based on same parameters as encryption
-	plaintext, err := rsa.DecryptOAEP(sha256.New(), rng, &key, ct, label)
-	// check for errors
+func checkError(err error, errMsg string) {
 	if err != nil {
-		log.Fatalln(err)
+		fmt.Println(errMsg + err.Error())
+		os.Exit(0)
 	}
-	return string(plaintext)
 }
 
-func main() {
+func RunClient() {
 	wg := sync.WaitGroup{}
 
 	fmt.Println("Client Starting...")
