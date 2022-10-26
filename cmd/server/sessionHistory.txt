@@ -1,0 +1,20 @@
+[2022-10-26 17:10:0]          Server started on port :8080 successfully
+[2022-10-26 17:10:0]          Client connected: boran, Connection: 127.0.0.1:50095
+[2022-10-26 17:10:0]          Client connected: ozdeger, Connection: 127.0.0.1:50096
+[2022-10-26 17:11:0]          Client connected: nour, Connection: 127.0.0.1:50097
+[2022-10-26 17:11:0]          'boran' CREATED A ROOM ->'room2'
+[2022-10-26 17:11:0]          'ozdeger' CREATED A ROOM ->'room3'
+[2022-10-26 17:11:0]          'boran' JOINED A ROOM ->'room2'
+[2022-10-26 17:11:0]          'ozdeger' JOINED A ROOM ->'room2'
+[2022-10-26 17:11:0]          'ozdeger' PROMOTED TO A MOD BY->'boran' FOR ROOM -> 'room2'
+[2022-10-26 17:11:0]          'ozdeger' BROADCAST ->room2:thanks!
+[2022-10-26 17:11:0]          'nour' JOINED A ROOM ->'room2'
+[2022-10-26 17:12:0]          'ozdeger' WHISPER ->'nour':hey
+[2022-10-26 17:12:0]          'ozdeger' SPAMMED spamming this message 5 Times
+[2022-10-26 17:12:0]          'boran' SHOUT ->room2
+[2022-10-26 17:12:0]          'ozdeger' BROADCAST ->room2:okay master
+[2022-10-26 17:12:0]          'nour' BROADCAST ->room2:lol
+[2022-10-26 17:13:0]          'boran' KICKED 'ozdeger' FROM ROOM ->'room2'
+[2022-10-26 17:13:0]          'boran' DISCONNECTED
+[2022-10-26 17:13:0]          'ozdeger' DISCONNECTED
+[2022-10-26 17:13:0]          'nour' DISCONNECTED
