@@ -19,6 +19,8 @@ var privateKey *rsa.PrivateKey
 var ServerPublicKey rsa.PublicKey
 
 var usrname string
+var clientRoom string
+var ptr *string
 
 func monitorSocket(conn net.Conn, wg sync.WaitGroup) {
 	defer wg.Done()
@@ -31,13 +33,14 @@ func monitorSocket(conn net.Conn, wg sync.WaitGroup) {
 		status = strings.Trim(status, ">")
 
 		fmt.Println("\n" + status)
-		fmt.Print(purple("> "))
+		fmt.Print(purple(usrname + "> "))
 	}
 }
 
 func sendMessage(conn net.Conn, wg sync.WaitGroup) {
 	for {
-		fmt.Print(purple("> "))
+		fmt.Println(clientRoom)
+		fmt.Print(purple(usrname + "> "))
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 
@@ -116,13 +119,10 @@ func setPublicKeyServer(conn net.Conn) rsa.PublicKey {
 	}
 }
 
-func getClientRoom(usr string) string {
-	fmt.Println(clients)
-	for i := 0; i < len(clients); i++ {
-		if clients[i].username == usr {
-			fmt.Println("Works")
-			return clients[i].currentRoom
-		}
+func getClientRoom(s string) string {
+	if s != "" {
+		fmt.Println("Works")
+		return s
 	}
 	return "general"
 }
