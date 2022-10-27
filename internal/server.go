@@ -49,9 +49,10 @@ const (
 	cmdSpam       string = "/spam"    //Done
 	cmdShout      string = "/shout"   //Done
 	cmdKick       string = "/kick"    //Done
-	cmdExit       string = "/exit"    //TODO
-	cmdHelp       string = "/help"    //Done but fix error messages
-	cmdList       string = "/list"    //TODO
+	cmdExit       string = "/exit"    //Done
+	cmdHelp       string = "/help"    //Done
+	cmdList       string = "/list"    //Done
+	cmdListRooms  string = "/rooms"   //Done
 )
 
 var (
@@ -89,13 +90,13 @@ var wg sync.WaitGroup
 
 var logFileName string = "sessionHistory.txt"
 
-func newClient(conn net.Conn, wg sync.WaitGroup) {
+func newClient(conn net.Conn) {
 	wg.Add(1)
 	defer wg.Done()
 
-	name := setUsername(conn, wg)
+	name := setUsername(conn)
 
-	key := setPublicKeyClient(conn, wg)
+	key := setPublicKeyClient(conn)
 
 	cli := &client{
 		conn:     conn,
@@ -115,10 +116,10 @@ func newClient(conn net.Conn, wg sync.WaitGroup) {
 	_, err := conn.Write([]byte(serverPublic.N.String() + " " + strconv.Itoa(serverPublic.E) + "\n"))
 	checkErrorServer(err, "")
 
-	handleUserConnection(conn, wg)
+	handleUserConnection(conn)
 }
 
-func setPublicKeyClient(conn net.Conn, wg sync.WaitGroup) rsa.PublicKey {
+func setPublicKeyClient(conn net.Conn) rsa.PublicKey {
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
 		checkErrorServer(err, "")
@@ -146,7 +147,7 @@ func setPublicKeyClient(conn net.Conn, wg sync.WaitGroup) rsa.PublicKey {
 		}
 	}
 }
-func setUsername(conn net.Conn, wg sync.WaitGroup) string {
+func setUsername(conn net.Conn) string {
 
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
@@ -157,8 +158,6 @@ func setUsername(conn net.Conn, wg sync.WaitGroup) string {
 			return userInput
 		}
 	}
-
-	return "anonymous"
 
 }
 
@@ -207,7 +206,7 @@ func remove(conn net.Conn) {
 	}
 }
 
-func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
+func handleUserConnection(conn net.Conn) {
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
 
@@ -246,7 +245,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 				msg := strings.Join(args[2:], " ")
 				logText := "'" + getUsername(conn) + "'" + " WHISPER ->" + "'" + destination + "'" + ":" + msg
 				writeLog(logText)
-				sendClientMessage(conn, msg, destination, getUsername(conn))
+				sendClientMessage(msg, destination, getUsername(conn))
 			}
 
 		case cmdBroadcast:
@@ -287,7 +286,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 				}
 			}
 
-			sendClientMessage(conn, msg, destination, "SERVER")
+			sendClientMessage(msg, destination, "SERVER")
 
 		case cmdJoinRoom:
 			var cli *client
@@ -332,7 +331,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 								}
 							}
 							clients[i].modOf = append(clients[i].modOf, getRoom(currentRoom))
-							sendClientMessage(clients[i].conn, "You have been promoted to a moderator by: "+getUsername(conn), clients[i].username, "SERVER")
+							sendClientMessage("You have been promoted to a moderator by: "+getUsername(conn), clients[i].username, "SERVER")
 						}
 					}
 
@@ -369,17 +368,17 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 						writeLog(logText)
 						clients[i].currentRoom = ""
 
-						sendClientMessage(clients[i].conn, "You have been kicked from '"+currentRoom+"' by: "+getUsername(conn), kicker.username, "SERVER")
+						sendClientMessage("You have been kicked from '"+currentRoom+"' by: "+getUsername(conn), kicker.username, "SERVER")
 					}
 				}
 			}
 
-			if isMod(conn, getRoom(currentRoom).mods, kicker.username) && !isMod(getClientByUsername(toKick).conn, getRoom(currentRoom).mods, toKick) {
+			if isMod(getRoom(currentRoom).mods, kicker.username) && !isMod(getRoom(currentRoom).mods, toKick) {
 				logText := "'" + getUsername(conn) + "'" + " KICKED " + "'" + toKick + "'" + " FROM ROOM ->" + "'" + currentRoom + "'"
 				writeLog(logText)
 
 				getClientByUsername(toKick).currentRoom = ""
-				sendClientMessage(getClientByUsername(toKick).conn, "You have been kicked from '"+currentRoom+"' by: "+getUsername(conn), toKick, "SERVER")
+				sendClientMessage("You have been kicked from '"+currentRoom+"' by: "+getUsername(conn), toKick, "SERVER")
 
 			}
 
@@ -410,7 +409,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 					activeUsers += "'" + clients[i].username + "'" + " "
 				}
 
-				sendClientMessage(conn, yellow(activeUsers), getUsername(conn), "SERVER: Active users are")
+				sendClientMessage(yellow(activeUsers), getUsername(conn), "SERVER: Active users are")
 				checkErrorServer(err, "unable to write over client connection")
 
 			} else if len(args) == 2 {
@@ -420,9 +419,17 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 					}
 				}
 
-				sendClientMessage(conn, yellow(activeUsers), getUsername(conn), "SERVER: Active users in '"+getRoom(args[1]).roomName+"' are")
+				sendClientMessage(yellow(activeUsers), getUsername(conn), "SERVER: Active users in '"+getRoom(args[1]).roomName+"' are")
 				checkErrorServer(err, "unable to write over client connection")
 			}
+
+		case cmdListRooms:
+			var activeRooms string
+			for i := 0; i < len(rooms); i++ {
+				activeRooms += "'" + rooms[i].roomName + "' "
+			}
+			sendClientMessage(yellow(activeRooms), getUsername(conn), "SERVER: Active rooms are")
+			checkErrorServer(err, "unable to write over client connection")
 
 		case cmdHelp:
 
@@ -444,7 +451,7 @@ func handleUserConnection(conn net.Conn, wg sync.WaitGroup) {
 	}
 }
 
-func sendClientMessage(conn net.Conn, msg string, destination string, sender string) {
+func sendClientMessage(msg string, destination string, sender string) {
 	for i := 0; i < len(clients); i++ {
 		if clients[i].username == destination {
 			cipherText := encrypt(blue(sender)+blue(": ")+msg, clients[i].public)
@@ -476,7 +483,7 @@ func broadcastMessage(conn net.Conn, msg string, owner string, sender string) {
 
 }
 
-func isMod(conn net.Conn, r []*client, user string) bool {
+func isMod(r []*client, user string) bool {
 	fmt.Println(user)
 	fmt.Println(len(r))
 	for i := 0; i < len(r); i++ {
@@ -512,6 +519,7 @@ func checkErrorServer(err error, errMsg string) {
 func RunServer() {
 	fmt.Println("Server starting...")
 	ln, err := net.Listen(PROTOCOL, PORT)
+	checkErrorServer(err, "Error listening on port")
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 
@@ -553,7 +561,7 @@ func RunServer() {
 		conn, err := ln.Accept()
 		checkErrorServer(err, "Unable to connect to client: ")
 
-		go newClient(conn, wg)
+		go newClient(conn)
 
 		wg.Wait()
 

@@ -20,9 +20,8 @@ var ServerPublicKey rsa.PublicKey
 
 var usrname string
 var clientRoom string
-var ptr *string
 
-func monitorSocket(conn net.Conn, wg sync.WaitGroup) {
+func monitorSocket(conn net.Conn) {
 	defer wg.Done()
 	for {
 		status, err := bufio.NewReader(conn).ReadString('\n')
@@ -37,10 +36,11 @@ func monitorSocket(conn net.Conn, wg sync.WaitGroup) {
 	}
 }
 
-func sendMessage(conn net.Conn, wg sync.WaitGroup) {
+func sendMessage(conn net.Conn) {
 	for {
 		fmt.Println(clientRoom)
 		fmt.Print(purple(usrname + "> "))
+
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 
@@ -49,6 +49,7 @@ func sendMessage(conn net.Conn, wg sync.WaitGroup) {
 
 		userInput := strings.Trim(scanner.Text(), "\r\n")
 		args := strings.Split(userInput, " ")
+
 		if args[0] == "/help" {
 			commandList := [13][3]string{USAGE, NAME, MSG, BROADCAST, SPAM, SHOUT, CREATE, JOIN, KICK, MSG, QUIT, HELP, LIST}
 			for i := range commandList {
@@ -119,14 +120,6 @@ func setPublicKeyServer(conn net.Conn) rsa.PublicKey {
 	}
 }
 
-func getClientRoom(s string) string {
-	if s != "" {
-		fmt.Println("Works")
-		return s
-	}
-	return "general"
-}
-
 func checkError(err error, errMsg string) {
 	if err != nil {
 		fmt.Println(errMsg + err.Error())
@@ -149,8 +142,8 @@ func RunClient() {
 	setusrname(conn)
 
 	wg.Add(1)
-	go monitorSocket(conn, wg)
-	go sendMessage(conn, wg)
+	go monitorSocket(conn)
+	go sendMessage(conn)
 
 	wg.Wait()
 }

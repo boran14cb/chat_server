@@ -1,5 +1,4 @@
-[2022-10-27 10:46:0]          Server started on port :8080 successfully
-[2022-10-27 10:46:0]          Client connected: boran, Connection: 127.0.0.1:51833
-[2022-10-27 10:46:0]          'boran' CREATED A ROOM ->'room2'
-[2022-10-27 10:46:0]          Client connected: oz, Connection: 127.0.0.1:51834
-[2022-10-27 10:46:0]          'boran' JOINED A ROOM ->'room2'
+[2022-10-27 11:55:0]          Server started on port :8080 successfully
+[2022-10-27 11:55:0]          Client connected: boran, Connection: 127.0.0.1:52121
+[2022-10-27 11:55:0]          Client connected: oz, Connection: 127.0.0.1:52123
+[2022-10-27 11:55:0]          'boran' BROADCAST ->:hi
