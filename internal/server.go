@@ -13,61 +13,21 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/fatih/color"
 )
 
+// Port to open the serve and the protocol to be used
 const (
 	PORT     string = ":8080"
 	PROTOCOL string = "tcp"
 )
 
-var (
-	USAGE     [3]string = [3]string{red("\nUsage:"), yellow(" /<Command>"), cyan(" arguments")}
-	NAME      [3]string = [3]string{red("/name"), yellow(" <new_name>"), cyan(" (Sets new username)")}
-	MSG       [3]string = [3]string{red("/msg"), yellow(" <receiver_username> <message>"), cyan(" (Sends a DM)")}
-	BROADCAST [3]string = [3]string{red("/all"), yellow(" <message>"), cyan(" (Sends a message to all users in the current room")}
-	SPAM      [3]string = [3]string{red("/spam"), yellow(" <spam_n_times <message>"), cyan(" (Spams the room 'N' times)")}
-	SHOUT     [3]string = [3]string{red("/shout"), yellow(" <message>"), cyan(" (Sends a message to room in capitals")}
-	CREATE    [3]string = [3]string{red("/create"), yellow(" <room_name>"), cyan(" (creates a new room with the specified name)")}
-	JOIN      [3]string = [3]string{red("/join"), yellow(" <room_name>"), cyan(" (Joins a room)")}
-	KICK      [3]string = [3]string{red("/kick"), yellow(" <username>"), cyan(" (Kicks the user out of the room, you have to be admin)")}
-	QUIT      [3]string = [3]string{red("/quit"), yellow(""), cyan(" (Quits the room)")}
-	EXIT      [3]string = [3]string{red("/exit"), yellow(""), cyan(" (Close the client connection)")}
-	HELP      [3]string = [3]string{red("/help"), yellow(""), cyan(" (Lists all commands)")}
-	LIST      [3]string = [3]string{red("/list"), yellow(" <(optional) room_name>"), cyan(" (Lists active users)\n")}
-)
-
-const (
-	cmdName       string = "/name"    //Done
-	cmdMsg        string = "/msg"     //Done
-	cmdBroadcast  string = "/all"     //Done
-	cmdCreateRoom string = "/create"  //Done
-	cmdJoinRoom   string = "/join"    //Done
-	cmdQuitRoom   string = "/quit"    //Done
-	cmdPromote    string = "/promote" //Done
-	cmdSpam       string = "/spam"    //Done
-	cmdShout      string = "/shout"   //Done
-	cmdKick       string = "/kick"    //Done
-	cmdExit       string = "/exit"    //Done
-	cmdHelp       string = "/help"    //Done
-	cmdList       string = "/list"    //Done
-	cmdListRooms  string = "/rooms"   //Done
-)
-
+// Key pair for the server
 var (
 	serverPrivate *rsa.PrivateKey
 	serverPublic  rsa.PublicKey
 )
 
-// Colours!!
-var cyan = color.New(color.FgCyan).SprintFunc()
-var green = color.New(color.FgGreen).SprintFunc()
-var blue = color.New(color.FgBlue).SprintFunc()
-var purple = color.New(color.FgMagenta).SprintFunc()
-var red = color.New(color.FgRed).SprintFunc()
-var yellow = color.New(color.FgYellow).SprintFunc()
-
+// Each client is a struct that contains information about themselves
 type client struct {
 	conn        net.Conn
 	username    string
@@ -77,6 +37,7 @@ type client struct {
 	public      rsa.PublicKey
 }
 
+// Each room is a struct that contains information about itself
 type room struct {
 	roomAdmin        *client
 	roomName         string
@@ -88,14 +49,14 @@ var rooms []room
 var clients []*client
 var wg sync.WaitGroup
 
-var logFileName string = "sessionHistory.txt"
+var logFileName string = "../../logging/sessionHistory.txt"
 
 func newClient(conn net.Conn) {
 	wg.Add(1)
 	defer wg.Done()
 
+	// First message from the user contains the selected username and a generated public key
 	name := setUsername(conn)
-
 	key := setPublicKeyClient(conn)
 
 	cli := &client{
@@ -106,19 +67,23 @@ func newClient(conn net.Conn) {
 
 	clients = append(clients, cli)
 
+	// Server informs that a client is connected with username and the remote adress
 	fmt.Println(green("\nClient connected!"))
 	fmt.Println(blue("Name: "), blue(getUsername(conn)))
 	fmt.Println(cyan("Connection: "), cyan(conn.RemoteAddr().String()))
 
+	// Logs the connect action
 	logText := "Client connected: " + getUsername(conn) + ", Connection: " + conn.RemoteAddr().String()
 	writeLog(logText)
 
+	// First message from the server to the clients contains a generated public key for the server
 	_, err := conn.Write([]byte(serverPublic.N.String() + " " + strconv.Itoa(serverPublic.E) + "\n"))
 	checkErrorServer(err, "")
 
 	handleUserConnection(conn)
 }
 
+// Set the public key field for the client to be used as a decryption key for the future messages
 func setPublicKeyClient(conn net.Conn) rsa.PublicKey {
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
@@ -147,6 +112,8 @@ func setPublicKeyClient(conn net.Conn) rsa.PublicKey {
 		}
 	}
 }
+
+// Set the username for a user that will be used as an identifier
 func setUsername(conn net.Conn) string {
 
 	for {
@@ -161,6 +128,7 @@ func setUsername(conn net.Conn) string {
 
 }
 
+// Returns the username for a user, given a connection string
 func getUsername(conn net.Conn) string {
 	for i := 0; i < len(clients); i++ {
 		if clients[i].conn == conn {
@@ -171,6 +139,7 @@ func getUsername(conn net.Conn) string {
 	return "No username available"
 }
 
+// Returns a client, given a connection string
 func getClient(conn net.Conn) *client {
 	for i := 0; i < len(clients); i++ {
 		if clients[i].conn == conn {
@@ -179,6 +148,8 @@ func getClient(conn net.Conn) *client {
 	}
 	return nil
 }
+
+// Returns a client, given a username
 func getClientByUsername(name string) *client {
 	for i := 0; i < len(clients); i++ {
 		if clients[i].username == name {
@@ -188,6 +159,7 @@ func getClientByUsername(name string) *client {
 	return nil
 }
 
+// Returns a room, given a room name
 func getRoom(roomName string) room {
 	for i := 0; i < len(rooms); i++ {
 		if rooms[i].roomName == roomName {
@@ -197,6 +169,7 @@ func getRoom(roomName string) room {
 	return room{nil, "", nil, nil}
 }
 
+// Removes a client from the connected clients list, given a connection string
 func remove(conn net.Conn) {
 	for i := 0; i < len(clients); i++ {
 		if clients[i].conn == conn {
@@ -206,8 +179,11 @@ func remove(conn net.Conn) {
 	}
 }
 
+// Main function that handles the commands, decrypts and splits the message and selects the action based on the command
+// First argument is the command
 func handleUserConnection(conn net.Conn) {
 	for {
+		// Waits for input from the clients
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
 
 		if err != nil {
@@ -217,6 +193,7 @@ func handleUserConnection(conn net.Conn) {
 			break
 		}
 
+		// decrypt using the server private key, trim the newline and split into a string array
 		userInput = decrypt(userInput, *serverPrivate)
 		userInput = strings.Trim(userInput, "\r\n")
 		args := strings.Split(userInput, " ")
@@ -224,6 +201,8 @@ func handleUserConnection(conn net.Conn) {
 
 		switch cmd {
 
+		// Set the username of the client to a new username
+		// Finds the user using the connection string and changes the username
 		case cmdName:
 			for i := 0; i < len(clients); i++ {
 				if clients[i].conn == conn {
@@ -239,6 +218,8 @@ func handleUserConnection(conn net.Conn) {
 				}
 			}
 
+		// Sends a DM to the specified user. Second element in the args array is the destination username
+		// Uses that username as an identifier for sending the DM to the specified user
 		case cmdMsg:
 			destination := args[1]
 			if userInput != "" {
@@ -248,6 +229,7 @@ func handleUserConnection(conn net.Conn) {
 				sendClientMessage(msg, destination, getUsername(conn))
 			}
 
+		// Sends the message to all of the clients connected to the same room as the sender
 		case cmdBroadcast:
 			var owner string
 			for i := 0; i < len(clients); i++ {
@@ -262,6 +244,7 @@ func handleUserConnection(conn net.Conn) {
 				broadcastMessage(conn, msg, owner, getUsername(conn))
 			}
 
+		// Create a new room specified by the name, which is the second element of the args array
 		case cmdCreateRoom:
 			roomName := strings.TrimSpace(args[1])
 
@@ -288,6 +271,7 @@ func handleUserConnection(conn net.Conn) {
 
 			sendClientMessage(msg, destination, "SERVER")
 
+		// Join a room specified by the room name, which is the second element of the args array
 		case cmdJoinRoom:
 			var cli *client
 			roomName := strings.TrimSpace(args[1])
@@ -295,8 +279,11 @@ func handleUserConnection(conn net.Conn) {
 				if clients[i].conn == conn {
 					cli = clients[i]
 					clients[i].currentRoom = roomName
+
 					logText := "'" + getUsername(conn) + "'" + " JOINED A ROOM ->" + "'" + roomName + "'"
 					writeLog(logText)
+
+					sendClientMessage("You joined a room: '"+yellow(roomName)+"'", getUsername(conn), "SERVER")
 				}
 			}
 
@@ -306,16 +293,21 @@ func handleUserConnection(conn net.Conn) {
 				}
 			}
 
+		// Qui the current room, no second arguments are required
 		case cmdQuitRoom:
 			for i := 0; i < len(clients); i++ {
 				if clients[i].conn == conn {
 					logText := "'" + getUsername(conn) + "'" + " QUITTED A ROOM ->" + "'" + getClient(conn).currentRoom + "'"
 					writeLog(logText)
+
+					sendClientMessage("You quitted the room: '"+yellow(getClient(conn).currentRoom)+"'", getUsername(conn), "SERVER")
 					clients[i].currentRoom = ""
 
 				}
 			}
 
+		// Promotes a member of the room, given that the promoter is the admin of the room
+		// O(N)^^3 code im so bad...
 		case cmdPromote:
 			currentRoom := getClient(conn).currentRoom
 			toPromote := strings.TrimSpace(args[1])
@@ -338,6 +330,7 @@ func handleUserConnection(conn net.Conn) {
 				}
 			}
 
+		// Broadcast message all in capitals, to all ussers
 		case cmdShout:
 			var owner string
 			for i := 0; i < len(clients); i++ {
@@ -352,6 +345,7 @@ func handleUserConnection(conn net.Conn) {
 				broadcastMessage(conn, msg, owner, getUsername(conn))
 			}
 
+		// Kicks a user from the room, given that the kicker is either an admin or a mod of the room
 		case cmdKick:
 			kicker := getClient(conn)
 			currentRoom := kicker.currentRoom
@@ -382,6 +376,7 @@ func handleUserConnection(conn net.Conn) {
 
 			}
 
+		// Spams the message to the server 'N' times. Number of times to spam is the second element of the args array
 		case cmdSpam:
 			var owner string
 			for i := 0; i < len(clients); i++ {
@@ -402,6 +397,7 @@ func handleUserConnection(conn net.Conn) {
 				writeLog(logText)
 			}
 
+		// Lists the active users or lists the active users in a room. If listing for room, a room name is required
 		case cmdList:
 			var activeUsers string
 			if len(args) == 1 {
@@ -415,7 +411,7 @@ func handleUserConnection(conn net.Conn) {
 			} else if len(args) == 2 {
 				for i := 0; i < len(clients); i++ {
 					if clients[i].currentRoom == args[1] {
-						activeUsers += clients[i].username + " "
+						activeUsers += "'" + clients[i].username + "'" + " "
 					}
 				}
 
@@ -423,16 +419,18 @@ func handleUserConnection(conn net.Conn) {
 				checkErrorServer(err, "unable to write over client connection")
 			}
 
+		// Lists the active rooms for the server
 		case cmdListRooms:
 			var activeRooms string
 			for i := 0; i < len(rooms); i++ {
-				activeRooms += "'" + rooms[i].roomName + "' "
+				activeRooms += "'" + rooms[i].roomName + "'" + " "
 			}
 			sendClientMessage(yellow(activeRooms), getUsername(conn), "SERVER: Active rooms are")
 			checkErrorServer(err, "unable to write over client connection")
 
 		case cmdHelp:
 
+		// Disconnects from the server
 		case cmdExit:
 			name := getUsername(conn)
 			remove(conn)
@@ -451,6 +449,7 @@ func handleUserConnection(conn net.Conn) {
 	}
 }
 
+// Writes a message to the client using a connection. Destination connection string determined by destination username
 func sendClientMessage(msg string, destination string, sender string) {
 	for i := 0; i < len(clients); i++ {
 		if clients[i].username == destination {
@@ -463,6 +462,7 @@ func sendClientMessage(msg string, destination string, sender string) {
 
 }
 
+// Sends message to all clients that are in the same room. Who to send is filtered by checking the current room of the user and each client's current room
 func broadcastMessage(conn net.Conn, msg string, owner string, sender string) {
 	var senderRoom string = ""
 	for i := 0; i < len(clients); i++ {
@@ -483,11 +483,9 @@ func broadcastMessage(conn net.Conn, msg string, owner string, sender string) {
 
 }
 
+// Checks whether the given user is a moderator for the room. The client array passed to this function is the mods array of a room object
 func isMod(r []*client, user string) bool {
-	fmt.Println(user)
-	fmt.Println(len(r))
 	for i := 0; i < len(r); i++ {
-		fmt.Println(r[i].username)
 		if r[i].username == user {
 
 			return true
@@ -496,6 +494,7 @@ func isMod(r []*client, user string) bool {
 	return false
 }
 
+// Writes to the log file for session logging
 func writeLog(logText string) {
 	fo, err := os.OpenFile(logFileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	checkErrorServer(err, "error opening log file")
@@ -516,37 +515,32 @@ func checkErrorServer(err error, errMsg string) {
 	}
 }
 
+// Main function that handles server connections in a loop
 func RunServer() {
 	fmt.Println("Server starting...")
 	ln, err := net.Listen(PROTOCOL, PORT)
 	checkErrorServer(err, "Error listening on port")
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	// Generates a public and private key pair for the server
+	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	checkErrorServer(err, " Unable to generate private key")
 
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	serverPrivate = privateKey
-	serverPublic = privateKey.PublicKey
-
-	if err != nil {
-		fmt.Println("Unable to start server: ", err.Error())
-		os.Exit(0)
-	}
+	serverPrivate = private
+	serverPublic = serverPrivate.PublicKey
 
 	defer ln.Close()
 
+	// Creates a log file for session logging
 	fo, err := os.Create(logFileName)
-	if err != nil {
-		panic(err)
-	}
+	checkErrorServer(err, "")
 
 	fmt.Println(green("Server started on port "), cyan(PORT))
 
+	// Logs the session start time when the server is started
 	currentTime := time.Now()
 	date := (currentTime.Format("[2006-01-02 15:04:0]"))
 	l, err := fo.WriteString(date + "          Server started on port " + PORT + " successfully")
+
 	if l == 0 {
 		fmt.Println("Write error")
 	}
@@ -557,13 +551,12 @@ func RunServer() {
 		return
 	}
 
+	// Main loop that accepts connections and sends them to a goroutine that continiously monitors the socket and handles the requests
 	for {
 		conn, err := ln.Accept()
 		checkErrorServer(err, "Unable to connect to client: ")
 
 		go newClient(conn)
-
-		wg.Wait()
 
 	}
 }

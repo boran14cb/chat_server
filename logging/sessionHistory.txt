@@ -1,0 +1,26 @@
+[2022-10-28 10:44:0]          Server started on port :8080 successfully
+[2022-10-28 10:44:0]          Client connected: boran, Connection: 127.0.0.1:56505
+[2022-10-28 10:44:0]          Client connected: nour, Connection: 127.0.0.1:56506
+[2022-10-28 10:44:0]          Client connected: tom, Connection: 127.0.0.1:56507
+[2022-10-28 10:45:0]          'boran' WHISPER ->'nour':hi
+[2022-10-28 10:45:0]          'boran' BROADCAST ->:hi all
+[2022-10-28 10:45:0]          'boran' SPAMMED this a spam lol 5 Times
+[2022-10-28 10:45:0]          'boran' SHOUT ->
+[2022-10-28 10:45:0]          'boran' CREATED A ROOM ->'room2'
+[2022-10-28 10:46:0]          'nour' CREATED A ROOM ->'room3'
+[2022-10-28 10:46:0]          'boran' JOINED A ROOM ->'room2'
+[2022-10-28 10:46:0]          'nour' JOINED A ROOM ->'room2'
+[2022-10-28 10:46:0]          'boran' BROADCAST ->room2:hi
+[2022-10-28 10:46:0]          'tom' JOINED A ROOM ->'room2'
+[2022-10-28 10:47:0]          'tom' PROMOTED TO A MOD BY->'boran' FOR ROOM -> 'room2'
+[2022-10-28 10:47:0]          'tom' KICKED 'nour' FROM ROOM ->'room2'
+[2022-10-28 10:47:0]          'nour' BROADCAST ->:hi
+[2022-10-28 10:47:0]          'tom' QUITTED A ROOM ->'room2'
+[2022-10-28 10:47:0]          'tom' BROADCAST ->:hi
+[2022-10-28 10:48:0]          'tom' JOINED A ROOM ->'room2'
+[2022-10-28 10:48:0]          'tom' QUITTED A ROOM ->'room2'
+[2022-10-28 10:48:0]          'tom' BROADCAST ->:hi
+[2022-10-28 10:48:0]          'tom' JOINED A ROOM ->'room2'
+[2022-10-28 10:48:0]          'tom' PROMOTED TO A MOD BY->'boran' FOR ROOM -> 'room2'
+[2022-10-28 10:49:0]          'nour' JOINED A ROOM ->'room2'
+[2022-10-28 10:49:0]          'tom' KICKED 'nour' FROM ROOM ->'room2'

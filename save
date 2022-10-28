@@ -1,0 +1,10 @@
+func printAboveLine(s string) {
+	fmt.Print("\0337")
+	fmt.Print("\033[A")
+	fmt.Print("\033[999D")
+	fmt.Print("\033[S")
+	fmt.Print("\033[L")
+	fmt.Println(s)
+	fmt.Print("\0338")
+	fmt.Printf("\033[2K\r%s", purple(usrname+"> "))
+}

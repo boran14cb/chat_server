@@ -17,10 +17,9 @@ import (
 var publicKey rsa.PublicKey
 var privateKey *rsa.PrivateKey
 var ServerPublicKey rsa.PublicKey
-
 var usrname string
-var clientRoom string
 
+// Monitors the socket continiosly for new messages
 func monitorSocket(conn net.Conn) {
 	defer wg.Done()
 	for {
@@ -31,15 +30,15 @@ func monitorSocket(conn net.Conn) {
 		status = strings.Trim(status, "\r\n")
 		status = strings.Trim(status, ">")
 
-		fmt.Println("\n" + status)
-		fmt.Print(purple(usrname + "> "))
+		printAboveLine(status)
+
 	}
 }
 
+// Gets input from the user and sends it to the server after encrypting
 func sendMessage(conn net.Conn) {
 	for {
-		fmt.Println(clientRoom)
-		fmt.Print(purple(usrname + "> "))
+		fmt.Printf("\033[2K\r%s", purple(usrname+"> "))
 
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
@@ -50,14 +49,23 @@ func sendMessage(conn net.Conn) {
 		userInput := strings.Trim(scanner.Text(), "\r\n")
 		args := strings.Split(userInput, " ")
 
-		if args[0] == "/help" {
-			commandList := [13][3]string{USAGE, NAME, MSG, BROADCAST, SPAM, SHOUT, CREATE, JOIN, KICK, MSG, QUIT, HELP, LIST}
+		switch args[0] {
+
+		case "/help":
+			commandList := [13][3]string{USAGE, NAME, MSG, BROADCAST, SPAM, SHOUT, CREATE, JOIN, KICK, PROMOTE, QUIT, HELP, LIST}
 			for i := range commandList {
 				fmt.Printf("%5s%5s%5s\n", commandList[i][0], commandList[i][1], commandList[i][2])
-
 			}
-		} else {
 
+		case "/name":
+			usrname = args[1]
+
+			msg := encrypt(scanner.Text(), ServerPublicKey)
+
+			_, err = conn.Write([]byte(msg + "\n"))
+			checkError(err, "")
+
+		default:
 			msg := encrypt(scanner.Text(), ServerPublicKey)
 
 			_, err = conn.Write([]byte(msg + "\n"))
@@ -66,6 +74,7 @@ func sendMessage(conn net.Conn) {
 	}
 }
 
+// Sets the username for the user for this session
 func setusrname(conn net.Conn) {
 	fmt.Print(blue("input username: "))
 	scanner := bufio.NewScanner(os.Stdin)
@@ -92,6 +101,8 @@ func setusrname(conn net.Conn) {
 	ServerPublicKey = setPublicKeyServer(conn)
 }
 
+// The first message received from the server is the public key of the server for encrypting the messages
+// So only server can decrypt it by using the server private key
 func setPublicKeyServer(conn net.Conn) rsa.PublicKey {
 	for {
 		userInput, err := bufio.NewReader(conn).ReadString('\n')
@@ -120,6 +131,19 @@ func setPublicKeyServer(conn net.Conn) rsa.PublicKey {
 	}
 }
 
+// Prints the received message 1 line above the current line
+func printAboveLine(s string) {
+	fmt.Print("\0337")
+	fmt.Print("\033[A")
+	fmt.Print("\033[999D")
+	fmt.Print("\033[S")
+	fmt.Print("\033[L")
+	fmt.Println(s)
+	fmt.Print("\0338")
+	fmt.Printf("\033[2K\r%s", purple(usrname+"> "))
+}
+
+// Checks and prints the errors
 func checkError(err error, errMsg string) {
 	if err != nil {
 		fmt.Println(errMsg + err.Error())
@@ -127,12 +151,14 @@ func checkError(err error, errMsg string) {
 	}
 }
 
+// Main function that starts the goroutines and connects to the port by dialing in
 func RunClient() {
 	wg := sync.WaitGroup{}
 
 	fmt.Println("Client Starting...")
 
-	conn, err := net.Dial("tcp", ":8080")
+	// Dial in using a protocol and a port
+	conn, err := net.Dial(PROTOCOL, PORT)
 
 	if err != nil {
 		fmt.Println("Unable to connect to server: ", err.Error())
